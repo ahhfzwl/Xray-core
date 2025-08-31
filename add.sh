@@ -14,6 +14,7 @@ show_step() {
 if [ "$1" = "uninstall" ]; then
   show_step "停止 Xray 服务"
   systemctl stop xray 2>/dev/null || true
+  pkill xray
   show_step "删除文件"
   rm -rf $XRAY_BIN $CONFIG_DIR /etc/systemd/system/xray.service
   systemctl daemon-reload
