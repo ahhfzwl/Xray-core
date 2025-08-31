@@ -1,199 +1,122 @@
-#!/bin/bash
-set -e
+#!/bin/sh
 
+# PVE LXC Alpine Xray 安装脚本
+# 使用 vless+ws 协议
+# UUID: 11112222-3333-4444-aaaa-bbbbccccdddd
+
+# 定义变量
 UUID="11112222-3333-4444-aaaa-bbbbccccdddd"
-XRAY_BIN="/usr/local/bin/xray"
-CONFIG_DIR="/etc/xray"
-LOG_DIR="/var/log/xray"
+PORT=443
+TLS_ENABLED=false
+CERT_PATH="/etc/xray/cert.pem"
+KEY_PATH="/etc/xray/key.pem"
 
-show_step() {
-  echo -e "\n[步骤] $1 ..."
-  sleep 1
+# 函数：显示菜单
+show_menu() {
+    echo "请选择操作:"
+    echo "1. 安装 Xray"
+    echo "2. 更新 Xray"
+    echo "3. 卸载 Xray"
+    echo "4. 退出"
 }
 
-# 卸载功能
-if [ "$1" = "uninstall" ]; then
-  show_step "停止 Xray 服务"
-  rc-service xray stop 2>/dev/null || true
-  
-  show_step "删除文件"
-  rm -rf $XRAY_BIN $CONFIG_DIR $LOG_DIR /etc/init.d/xray
-  rc-update del xray 2>/dev/null || true
-  
-  echo "✅ Xray 已卸载完成"
-  exit 0
-fi
+# 函数：安装 Xray
+install_xray() {
+    echo "开始安装 Xray..."
+    apk update
+    apk add --no-cache xray
 
-# 协议选择
-echo "请选择协议类型："
-echo "1) vless"
-echo "2) vmess"
-read -p "输入数字 (默认 1): " PROTO_OPT
-case "$PROTO_OPT" in
-  2) PROTO="vmess" ;;
-  *) PROTO="vless" ;;
-esac
-
-# 端口设置
-read -p "请输入服务端口 [默认 443]：" PORT
-PORT=${PORT:-443}
-
-# TLS 选项
-echo "是否启用 TLS？"
-echo "1) 启用 (自签证书)"
-echo "2) 不启用"
-read -p "输入数字 (默认 2): " TLS_OPT
-case "$TLS_OPT" in
-  1) USE_TLS=1 ;;
-  *) USE_TLS=0 ;;
-esac
-
-# 安装依赖
-show_step "安装依赖"
-apk add --no-cache curl unzip openssl libc6-compat
-mkdir -p /run/xray $LOG_DIR
-
-# 获取最新版本
-show_step "获取 Xray 最新版本"
-VER=$(curl -s https://api.github.com/repos/XTLS/Xray-core/releases/latest | grep tag_name | cut -d '"' -f4)
-echo "最新版本: $VER"
-
-# 下载安装 (使用 musl 静态编译版)
-show_step "下载并安装 Xray"
-ARCH=$(uname -m)
-case "$ARCH" in
-  x86_64) ARCH="64" ;;
-  aarch64) ARCH="arm64-v8a" ;;
-  armv7l) ARCH="arm32-v7a" ;;
-  *) echo "不支持的架构: $ARCH" && exit 1 ;;
-esac
-
-cd /tmp
-curl -L -o xray.zip https://github.com/XTLS/Xray-core/releases/download/$VER/Xray-linux-$ARCH-musl.zip
-unzip -o xray.zip
-install -m 755 xray $XRAY_BIN
-
-# 生成配置文件
-show_step "生成配置文件"
-mkdir -p $CONFIG_DIR
-
-if [ "$USE_TLS" -eq 1 ]; then
-  mkdir -p $CONFIG_DIR/certs
-  openssl req -new -x509 -days 3650 -nodes -subj "/CN=xray.local" \
-    -out $CONFIG_DIR/certs/cert.pem -keyout $CONFIG_DIR/certs/key.pem
-    
-  TLS_JSON='{
-    "streamSettings": {
-      "network": "ws",
-      "security": "tls",
-      "tlsSettings": {
-        "certificates": [
-          {
-            "certificateFile": "'$CONFIG_DIR'/certs/cert.pem",
-            "keyFile": "'$CONFIG_DIR'/certs/key.pem"
-          }
-        ]
-      },
-      "wsSettings": {
-        "path": "/"
-      }
-    }
-  }'
-else
-  TLS_JSON='{
-    "streamSettings": {
-      "network": "ws",
-      "wsSettings": {
-        "path": "/"
-      }
-    }
-  }'
-fi
-
-cat >$CONFIG_DIR/config.json <<EOF
+    # 创建 Xray 配置文件
+    cat <<EOF > /etc/xray/config.json
 {
   "log": {
-    "loglevel": "warning",
-    "access": "$LOG_DIR/access.log",
-    "error": "$LOG_DIR/error.log"
+    "loglevel": "warning"
   },
   "inbounds": [
     {
       "port": $PORT,
-      "protocol": "$PROTO",
+      "listen": "0.0.0.0",
+      "protocol": "vless",
       "settings": {
         "clients": [
-          { "id": "$UUID" }
-        ]
+          {
+            "id": "$UUID"
+          }
+        ],
+        "decryption": "none"
       },
-      $TLS_JSON
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificateFile": "$CERT_PATH",
+              "keyFile": "$KEY_PATH"
+            }
+          ]
+        },
+        "wsSettings": {
+          "path": "/vless"
+        }
+      }
     }
   ],
   "outbounds": [
-    { "protocol": "freedom" }
+    {
+      "protocol": "freedom",
+      "settings": {}
+    }
   ]
 }
 EOF
 
-# OpenRC 服务配置
-show_step "创建 OpenRC 服务"
-cat >/etc/init.d/xray <<EOF
-#!/sbin/openrc-run
-name="Xray Service"
-description="Xray Proxy Service"
+    # 启动 Xray 服务
+    rc-update add xray default
+    rc-service xray start
 
-command="$XRAY_BIN"
-command_args="-config $CONFIG_DIR/config.json"
-command_user="root"
-
-pidfile="/run/xray.pid"
-logfile="$LOG_DIR/service.log"
-
-depend() {
-  need net
-  use dns
+    echo "Xray 安装完成，端口: $PORT, UUID: $UUID"
 }
 
-start_pre() {
-  checkpath -f -m 0644 -o \$command_user \$logfile
+# 函数：更新 Xray
+update_xray() {
+    echo "开始更新 Xray..."
+    apk update
+    apk upgrade --no-cache xray
+
+    echo "Xray 更新完成"
 }
 
-start() {
-  ebegin "Starting \$name"
-  start-stop-daemon --start \\
-    --exec \$command \\
-    --user \$command_user \\
-    --background \\
-    --make-pidfile \\
-    --pidfile \$pidfile \\
-    -- \\
-    \$command_args >> \$logfile 2>&1
-  eend \$?
+# 函数：卸载 Xray
+uninstall_xray() {
+    echo "开始卸载 Xray..."
+    rc-service xray stop
+    rc-update del xray default
+    apk del xray
+
+    echo "Xray 卸载完成"
 }
 
-stop() {
-  ebegin "Stopping \$name"
-  start-stop-daemon --stop \\
-    --exec \$command \\
-    --pidfile \$pidfile
-  eend \$?
-}
-EOF
-
-chmod +x /etc/init.d/xray
-rc-update add xray default
-rc-service xray start
-
-# 显示结果
-echo -e "\n✅ Xray $VER 安装完成！"
-echo "协议：$PROTO + WS"
-echo "端口：$PORT"
-echo "UUID：$UUID"
-[ "$USE_TLS" -eq 1 ] && echo "TLS：启用 (自签证书)" || echo "TLS：未启用"
-echo "配置文件：$CONFIG_DIR/config.json"
-echo "日志文件：$LOG_DIR/{access,error}.log"
-echo -e "\n管理命令："
-echo "启动服务: rc-service xray start"
-echo "停止服务: rc-service xray stop"
-echo "查看状态: rc-service xray status"
-echo "卸载命令: $0 uninstall"
+# 主程序
+while true; do
+    show_menu
+    read -p "请输入选项 (1-4): " choice
+    case $choice in
+        1)
+            install_xray
+            ;;
+        2)
+            update_xray
+            ;;
+        3)
+            uninstall_xray
+            ;;
+        4)
+            echo "退出脚本"
+            exit 0
+            ;;
+        *)
+            echo "无效选项，请重新输入"
+            ;;
+    esac
+done
