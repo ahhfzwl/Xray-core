@@ -29,7 +29,7 @@ install_xray() {
 
     # 下载并解压 Xray
     mkdir -p /usr/local/bin
-    curl -Ls $XRAY_URL -o /tmp/xray.zip
+    curl -L $XRAY_URL -o /tmp/xray.zip
     unzip /tmp/xray.zip -d /usr/local/bin/
 
     # 创建配置文件目录
