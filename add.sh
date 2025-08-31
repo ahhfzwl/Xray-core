@@ -24,10 +24,12 @@ show_menu() {
 # 函数：安装 Xray
 install_xray() {
     echo "开始安装 Xray..."
+    apk update
+    apk add --no-cache unzip openrc
 
     # 下载并解压 Xray
     mkdir -p /usr/local/bin
-    curl -L $XRAY_URL -o /tmp/xray.zip
+    curl -Ls $XRAY_URL -o /tmp/xray.zip
     unzip /tmp/xray.zip -d /usr/local/bin/
 
     # 创建配置文件目录
@@ -84,24 +86,28 @@ EOF
         openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 -subj "/CN=your_domain" -keyout $KEY_PATH -out $CERT_PATH
     fi
 
-    # 创建系统服务文件
-    cat <<EOF > /etc/systemd/system/xray.service
-[Unit]
-Description=Xray Service
-After=network.target
+    # 创建 openrc 服务文件
+    mkdir -p /etc/init.d
+    cat <<EOF > /etc/init.d/xray
+#!/sbin/runscript
 
-[Service]
-ExecStart=/usr/local/bin/xray -config /etc/xray/config.json
-Restart=on-failure
+start() {
+    ebegin "Starting Xray"
+    /usr/local/bin/xray -config /etc/xray/config.json
+    eend $?
+}
 
-[Install]
-WantedBy=multi-user.target
+stop() {
+    ebegin "Stopping Xray"
+    pkill xray
+    eend $?
+}
 EOF
+    chmod +x /etc/init.d/xray
 
     # 启动并启用 Xray 服务
-    systemctl daemon-reload
-    systemctl enable xray
-    systemctl start xray
+    rc-update add xray default
+    rc-service xray start
 
     echo "Xray 安装完成，端口: $PORT, UUID: $UUID"
 }
@@ -118,7 +124,7 @@ update_xray() {
     unzip /tmp/xray.zip -d /usr/local/bin/
 
     # 重启 Xray 服务
-    systemctl restart xray
+    rc-service xray restart
 
     echo "Xray 更新完成"
 }
@@ -126,12 +132,11 @@ update_xray() {
 # 函数：卸载 Xray
 uninstall_xray() {
     echo "开始卸载 Xray..."
-    systemctl stop xray
-    systemctl disable xray
+    rc-service xray stop
+    rc-update del xray default
     rm -rf /usr/local/bin/xray
     rm -rf /etc/xray
-    rm -rf /etc/systemd/system/xray.service
-    systemctl daemon-reload
+    rm -rf /etc/init.d/xray
 
     echo "Xray 卸载完成"
 }
