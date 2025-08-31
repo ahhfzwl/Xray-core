@@ -1,1 +1,1 @@
-bash <(curl -Ls https://raw.by.now.cc/ahhfzwl/sing-box/main/sing-box.sh) add
+bash <(curl -Ls https://raw.githubusercontent.com/ahhfzwl/Xray-core/refs/heads/main/add.sh) add
