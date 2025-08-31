@@ -4,6 +4,7 @@ set -e
 UUID="11112222-3333-4444-aaaa-bbbbccccdddd"
 XRAY_BIN="/usr/local/bin/xray"
 CONFIG_DIR="/etc/xray"
+LOG_DIR="/var/log/xray"
 
 show_step() {
   echo -e "\n[步骤] $1 ..."
@@ -13,16 +14,17 @@ show_step() {
 # 卸载功能
 if [ "$1" = "uninstall" ]; then
   show_step "停止 Xray 服务"
-  systemctl stop xray 2>/dev/null || true
-  pkill xray
+  rc-service xray stop 2>/dev/null || true
+  
   show_step "删除文件"
-  rm -rf $XRAY_BIN $CONFIG_DIR /etc/systemd/system/xray.service
-  systemctl daemon-reload
+  rm -rf $XRAY_BIN $CONFIG_DIR $LOG_DIR /etc/init.d/xray
+  rc-update del xray 2>/dev/null || true
+  
   echo "✅ Xray 已卸载完成"
   exit 0
 fi
 
-# 选择协议
+# 协议选择
 echo "请选择协议类型："
 echo "1) vless"
 echo "2) vmess"
@@ -32,11 +34,11 @@ case "$PROTO_OPT" in
   *) PROTO="vless" ;;
 esac
 
-# 输入端口
+# 端口设置
 read -p "请输入服务端口 [默认 443]：" PORT
 PORT=${PORT:-443}
 
-# 是否启用 TLS
+# TLS 选项
 echo "是否启用 TLS？"
 echo "1) 启用 (自签证书)"
 echo "2) 不启用"
@@ -47,24 +49,16 @@ case "$TLS_OPT" in
 esac
 
 # 安装依赖
-show_step "安装依赖 (curl unzip openssl)"
-if command -v apt >/dev/null 2>&1; then
-  apt update && apt install -y curl unzip openssl
-elif command -v yum >/dev/null 2>&1; then
-  yum install -y curl unzip openssl
-elif command -v apk >/dev/null 2>&1; then
-  apk add --no-cache curl unzip openssl
-else
-  echo "未知的包管理器，请手动安装 curl unzip openssl"
-  exit 1
-fi
+show_step "安装依赖"
+apk add --no-cache curl unzip openssl libc6-compat
+mkdir -p /run/xray $LOG_DIR
 
 # 获取最新版本
 show_step "获取 Xray 最新版本"
 VER=$(curl -s https://api.github.com/repos/XTLS/Xray-core/releases/latest | grep tag_name | cut -d '"' -f4)
 echo "最新版本: $VER"
 
-# 下载并安装
+# 下载安装 (使用 musl 静态编译版)
 show_step "下载并安装 Xray"
 ARCH=$(uname -m)
 case "$ARCH" in
@@ -75,28 +69,28 @@ case "$ARCH" in
 esac
 
 cd /tmp
-curl -L -o xray.zip https://github.com/XTLS/Xray-core/releases/download/$VER/Xray-linux-$ARCH.zip
+curl -L -o xray.zip https://github.com/XTLS/Xray-core/releases/download/$VER/Xray-linux-$ARCH-musl.zip
 unzip -o xray.zip
 install -m 755 xray $XRAY_BIN
 
-# 配置目录
+# 生成配置文件
 show_step "生成配置文件"
 mkdir -p $CONFIG_DIR
 
-TLS_JSON=""
 if [ "$USE_TLS" -eq 1 ]; then
   mkdir -p $CONFIG_DIR/certs
   openssl req -new -x509 -days 3650 -nodes -subj "/CN=xray.local" \
     -out $CONFIG_DIR/certs/cert.pem -keyout $CONFIG_DIR/certs/key.pem
-  TLS_JSON=$(cat <<EOF
+    
+  TLS_JSON='{
     "streamSettings": {
       "network": "ws",
       "security": "tls",
       "tlsSettings": {
         "certificates": [
           {
-            "certificateFile": "$CONFIG_DIR/certs/cert.pem",
-            "keyFile": "$CONFIG_DIR/certs/key.pem"
+            "certificateFile": "'$CONFIG_DIR'/certs/cert.pem",
+            "keyFile": "'$CONFIG_DIR'/certs/key.pem"
           }
         ]
       },
@@ -104,22 +98,25 @@ if [ "$USE_TLS" -eq 1 ]; then
         "path": "/"
       }
     }
-EOF
-)
+  }'
 else
-  TLS_JSON=$(cat <<EOF
+  TLS_JSON='{
     "streamSettings": {
       "network": "ws",
       "wsSettings": {
         "path": "/"
       }
     }
-EOF
-)
+  }'
 fi
 
 cat >$CONFIG_DIR/config.json <<EOF
 {
+  "log": {
+    "loglevel": "warning",
+    "access": "$LOG_DIR/access.log",
+    "error": "$LOG_DIR/error.log"
+  },
   "inbounds": [
     {
       "port": $PORT,
@@ -138,37 +135,65 @@ cat >$CONFIG_DIR/config.json <<EOF
 }
 EOF
 
-# systemd 服务
-show_step "创建 systemd 服务"
-cat >/etc/systemd/system/xray.service <<EOF
-[Unit]
-Description=Xray Service
-After=network.target
+# OpenRC 服务配置
+show_step "创建 OpenRC 服务"
+cat >/etc/init.d/xray <<EOF
+#!/sbin/openrc-run
+name="Xray Service"
+description="Xray Proxy Service"
 
-[Service]
-ExecStart=$XRAY_BIN -config $CONFIG_DIR/config.json
-Restart=on-failure
-User=root
-LimitNOFILE=65535
+command="$XRAY_BIN"
+command_args="-config $CONFIG_DIR/config.json"
+command_user="root"
 
-[Install]
-WantedBy=multi-user.target
+pidfile="/run/xray.pid"
+logfile="$LOG_DIR/service.log"
+
+depend() {
+  need net
+  use dns
+}
+
+start_pre() {
+  checkpath -f -m 0644 -o \$command_user \$logfile
+}
+
+start() {
+  ebegin "Starting \$name"
+  start-stop-daemon --start \\
+    --exec \$command \\
+    --user \$command_user \\
+    --background \\
+    --make-pidfile \\
+    --pidfile \$pidfile \\
+    -- \\
+    \$command_args >> \$logfile 2>&1
+  eend \$?
+}
+
+stop() {
+  ebegin "Stopping \$name"
+  start-stop-daemon --stop \\
+    --exec \$command \\
+    --pidfile \$pidfile
+  eend \$?
+}
 EOF
 
-# 启动服务
-show_step "启动 Xray 服务"
-systemctl daemon-reload
-systemctl enable xray
-systemctl restart xray
+chmod +x /etc/init.d/xray
+rc-update add xray default
+rc-service xray start
 
+# 显示结果
 echo -e "\n✅ Xray $VER 安装完成！"
 echo "协议：$PROTO + WS"
 echo "端口：$PORT"
 echo "UUID：$UUID"
-if [ "$USE_TLS" -eq 1 ]; then
-  echo "TLS：启用 (自签证书)"
-else
-  echo "TLS：未启用"
-fi
-echo "配置文件位置：$CONFIG_DIR/config.json"
-echo "卸载请执行：bash $0 uninstall"
+[ "$USE_TLS" -eq 1 ] && echo "TLS：启用 (自签证书)" || echo "TLS：未启用"
+echo "配置文件：$CONFIG_DIR/config.json"
+echo "日志文件：$LOG_DIR/{access,error}.log"
+echo -e "\n管理命令："
+echo "启动服务: rc-service xray start"
+echo "停止服务: rc-service xray stop"
+echo "查看状态: rc-service xray status"
+echo "卸载命令: $0 uninstall"
