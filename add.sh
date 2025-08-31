@@ -24,8 +24,6 @@ show_menu() {
 # 函数：安装 Xray
 install_xray() {
     echo "开始安装 Xray..."
-    apk update
-    apk add --no-cache unzip
 
     # 下载并解压 Xray
     mkdir -p /usr/local/bin
