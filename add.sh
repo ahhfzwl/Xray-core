@@ -1,70 +1,102 @@
 #!/bin/sh
+# Xray 一体化脚本 (Alpine LXC)
+# 支持: 安装 / 更新 / 卸载
+# 协议: VLESS + WS
+# 默认端口: 443
+# 默认UUID: 11112222-3333-4444-aaaa-bbbbccccdddd
+# 可选 TLS，自签证书
 
-# PVE LXC Alpine Xray 安装脚本
-# 使用 vless+ws 协议
-# UUID: 11112222-3333-4444-aaaa-bbbbccccdddd
+set -e
 
-# 定义变量
-UUID="11112222-3333-4444-aaaa-bbbbccccdddd"
-PORT=443
-TLS_ENABLED=false
-CERT_PATH="/etc/xray/cert.pem"
-KEY_PATH="/etc/xray/key.pem"
-XRAY_URL="https://github.com/XTLS/Xray-core/releases/download/v1.8.3/Xray-linux-64.zip"
+XRAY_UUID="11112222-3333-4444-aaaa-bbbbccccdddd"
+XRAY_PORT=443
+ENABLE_TLS=1  # 1=启用TLS, 0=不启用
+CONFIG_DIR="/etc/xray"
+CONFIG_FILE="$CONFIG_DIR/config.json"
+CERT_DIR="/etc/xray/cert"
+SERVICE_FILE="/etc/init.d/xray"
 
-# 函数：显示菜单
-show_menu() {
-    echo "请选择操作:"
-    echo "1. 安装 Xray"
-    echo "2. 更新 Xray"
-    echo "3. 卸载 Xray"
-    echo "4. 退出"
+print_info() { echo -e "\033[1;34m[INFO]\033[0m $1"; }
+print_error() { echo -e "\033[1;31m[ERROR]\033[0m $1"; }
+
+# 检查依赖
+check_dependencies() {
+    print_info "检查依赖..."
+    apk update
+    deps="curl wget tar unzip socat openssl"
+    for pkg in $deps; do
+        if ! apk info | grep -q "^$pkg"; then
+            print_info "安装缺失依赖: $pkg"
+            apk add --no-cache $pkg
+        fi
+    done
 }
 
-# 函数：安装 Xray
+# 获取最新 Xray 版本并下载 .zip 文件
 install_xray() {
-    echo "开始安装 Xray..."
+    print_info "获取最新 Xray 版本..."
+    # 获取 release 页面下载链接，只匹配 linux-64.zip
+    XRAY_URL=$(curl -s https://api.github.com/repos/XTLS/Xray-core/releases/latest \
+        | grep browser_download_url \
+        | grep 'Xray-linux-64.zip"' \
+        | cut -d '"' -f 4)
+    print_info "下载 Xray: $XRAY_URL"
+    wget -O /tmp/xray.zip "$XRAY_URL"
+    unzip -o /tmp/xray.zip -d /tmp/xray
+    install -m 755 /tmp/xray/xray /usr/local/bin/xray
+    mkdir -p "$CONFIG_DIR" "$CERT_DIR"
+    print_info "Xray 安装完成"
+}
 
-    # 下载并解压 Xray
-    mkdir -p /usr/local/bin
-    curl -L $XRAY_URL -o /tmp/xray.zip
-    unzip /tmp/xray.zip -d /usr/local/bin/
+# 生成自签证书
+generate_cert() {
+    print_info "生成自签证书..."
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout "$CERT_DIR/private.key" \
+        -out "$CERT_DIR/cert.crt" \
+        -subj "/CN=localhost"
+}
 
-    # 创建配置文件目录
-    mkdir -p /etc/xray
+# 写配置文件
+write_config() {
+    print_info "生成 Xray 配置文件..."
+    if [ "$ENABLE_TLS" -eq 1 ]; then
+        TLS_BLOCK="
+      \"tls\": {
+        \"certificates\": [
+          {
+            \"certificateFile\": \"$CERT_DIR/cert.crt\",
+            \"keyFile\": \"$CERT_DIR/private.key\"
+          }
+        ]
+      },"
+    else
+        TLS_BLOCK=""
+    fi
 
-    # 创建 Xray 配置文件
-    cat <<EOF > /etc/xray/config.json
+    cat > "$CONFIG_FILE" <<EOF
 {
   "log": {
-    "loglevel": "warning"
+    "loglevel": "info"
   },
   "inbounds": [
     {
-      "port": $PORT,
-      "listen": "0.0.0.0",
+      "port": $XRAY_PORT,
       "protocol": "vless",
       "settings": {
         "clients": [
           {
-            "id": "$UUID"
+            "id": "$XRAY_UUID",
+            "flow": "xtls-rprx-vision"
           }
         ],
         "decryption": "none"
       },
       "streamSettings": {
         "network": "ws",
-        "security": "tls",
-        "tlsSettings": {
-          "certificates": [
-            {
-              "certificateFile": "$CERT_PATH",
-              "keyFile": "$KEY_PATH"
-            }
-          ]
-        },
+        $TLS_BLOCK
         "wsSettings": {
-          "path": "/vless"
+          "path": "/"
         }
       }
     }
@@ -77,88 +109,81 @@ install_xray() {
   ]
 }
 EOF
-
-    # 生成自签证书
-    if $TLS_ENABLED; then
-        mkdir -p /etc/xray
-        openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 -subj "/CN=your_domain" -keyout $KEY_PATH -out $CERT_PATH
-    fi
-
-    # 创建 openrc 服务文件
-    mkdir -p /etc/init.d
-    cat <<EOF > /etc/init.d/xray
-#!/sbin/runscript
-
-start() {
-    ebegin "Starting Xray"
-    /usr/local/bin/xray -config /etc/xray/config.json
-    eend $?
 }
 
-stop() {
-    ebegin "Stopping Xray"
-    pkill xray
-    eend $?
-}
+# 创建 OpenRC 服务
+create_service() {
+    print_info "创建 Xray 服务..."
+    cat > "$SERVICE_FILE" <<'EOF'
+#!/sbin/openrc-run
+name="xray"
+command="/usr/local/bin/xray"
+command_args="-config /etc/xray/config.json"
+command_background=true
+pidfile="/var/run/xray.pid"
 EOF
-    chmod +x /etc/init.d/xray
-
-    # 启动并启用 Xray 服务
+    chmod +x "$SERVICE_FILE"
     rc-update add xray default
-    rc-service xray start
-
-    echo "Xray 安装完成，端口: $PORT, UUID: $UUID"
 }
 
-# 函数：更新 Xray
-update_xray() {
-    echo "开始更新 Xray..."
-    apk update
-    apk upgrade --no-cache unzip
-
-    # 下载并解压最新的 Xray
-    mkdir -p /usr/local/bin
-    curl -Ls $XRAY_URL -o /tmp/xray.zip
-    unzip /tmp/xray.zip -d /usr/local/bin/
-
-    # 重启 Xray 服务
-    rc-service xray restart
-
-    echo "Xray 更新完成"
+start_xray() {
+    print_info "启动 Xray..."
+    rc-service xray start || print_error "启动失败"
 }
 
-# 函数：卸载 Xray
+stop_xray() {
+    print_info "停止 Xray..."
+    rc-service xray stop || print_error "停止失败"
+}
+
 uninstall_xray() {
-    echo "开始卸载 Xray..."
-    rc-service xray stop
-    rc-update del xray default
-    rm -rf /usr/local/bin/xray
-    rm -rf /etc/xray
-    rm -rf /etc/init.d/xray
-
-    echo "Xray 卸载完成"
+    print_info "卸载 Xray..."
+    stop_xray
+    rc-update del xray
+    rm -f /usr/local/bin/xray
+    rm -rf "$CONFIG_DIR" "$CERT_DIR" "$SERVICE_FILE"
+    print_info "卸载完成"
 }
 
-# 主程序
-while true; do
-    show_menu
-    read -p "请输入选项 (1-4): " choice
+update_xray() {
+    print_info "更新 Xray..."
+    stop_xray
+    install_xray
+    start_xray
+}
+
+show_menu() {
+    echo "================ Xray Alpine 一体化脚本 ================"
+    echo "1) 安装 Xray"
+    echo "2) 更新 Xray"
+    echo "3) 卸载 Xray"
+    echo "4) 启动 Xray"
+    echo "5) 停止 Xray"
+    echo "6) 修改端口 (当前: $XRAY_PORT)"
+    echo "7) 启用/禁用 TLS (当前: $( [ $ENABLE_TLS -eq 1 ] && echo 启用 || echo 禁用 ))"
+    echo "0) 退出"
+    echo "======================================================="
+    read -p "请输入选项: " choice
     case $choice in
         1)
+            check_dependencies
             install_xray
+            [ $ENABLE_TLS -eq 1 ] && generate_cert
+            write_config
+            create_service
+            start_xray
             ;;
-        2)
-            update_xray
-            ;;
-        3)
-            uninstall_xray
-            ;;
-        4)
-            echo "退出脚本"
-            exit 0
-            ;;
-        *)
-            echo "无效选项，请重新输入"
-            ;;
+        2) update_xray ;;
+        3) uninstall_xray ;;
+        4) start_xray ;;
+        5) stop_xray ;;
+        6) read -p "请输入新端口: " newport; XRAY_PORT=$newport; echo "端口已修改为 $XRAY_PORT" ;;
+        7) ENABLE_TLS=$((1-ENABLE_TLS)); echo "TLS状态切换完成: $( [ $ENABLE_TLS -eq 1 ] && echo 启用 || echo 禁用 )" ;;
+        0) exit 0 ;;
+        *) echo "无效选项" ;;
     esac
+}
+
+while true; do
+    show_menu
 done
