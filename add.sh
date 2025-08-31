@@ -10,6 +10,7 @@ PORT=443
 TLS_ENABLED=false
 CERT_PATH="/etc/xray/cert.pem"
 KEY_PATH="/etc/xray/key.pem"
+XRAY_URL="https://github.com/XTLS/Xray-core/releases/download/v1.8.3/Xray-linux-64.zip"
 
 # 函数：显示菜单
 show_menu() {
@@ -24,7 +25,15 @@ show_menu() {
 install_xray() {
     echo "开始安装 Xray..."
     apk update
-    apk add --no-cache xray
+    apk add --no-cache unzip
+
+    # 下载并解压 Xray
+    mkdir -p /usr/local/bin
+    curl -Ls $XRAY_URL -o /tmp/xray.zip
+    unzip /tmp/xray.zip -d /usr/local/bin/
+
+    # 创建配置文件目录
+    mkdir -p /etc/xray
 
     # 创建 Xray 配置文件
     cat <<EOF > /etc/xray/config.json
@@ -71,9 +80,30 @@ install_xray() {
 }
 EOF
 
-    # 启动 Xray 服务
-    rc-update add xray default
-    rc-service xray start
+    # 生成自签证书
+    if $TLS_ENABLED; then
+        mkdir -p /etc/xray
+        openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 -subj "/CN=your_domain" -keyout $KEY_PATH -out $CERT_PATH
+    fi
+
+    # 创建系统服务文件
+    cat <<EOF > /etc/systemd/system/xray.service
+[Unit]
+Description=Xray Service
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/xray -config /etc/xray/config.json
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # 启动并启用 Xray 服务
+    systemctl daemon-reload
+    systemctl enable xray
+    systemctl start xray
 
     echo "Xray 安装完成，端口: $PORT, UUID: $UUID"
 }
@@ -82,7 +112,15 @@ EOF
 update_xray() {
     echo "开始更新 Xray..."
     apk update
-    apk upgrade --no-cache xray
+    apk upgrade --no-cache unzip
+
+    # 下载并解压最新的 Xray
+    mkdir -p /usr/local/bin
+    curl -Ls $XRAY_URL -o /tmp/xray.zip
+    unzip /tmp/xray.zip -d /usr/local/bin/
+
+    # 重启 Xray 服务
+    systemctl restart xray
 
     echo "Xray 更新完成"
 }
@@ -90,9 +128,12 @@ update_xray() {
 # 函数：卸载 Xray
 uninstall_xray() {
     echo "开始卸载 Xray..."
-    rc-service xray stop
-    rc-update del xray default
-    apk del xray
+    systemctl stop xray
+    systemctl disable xray
+    rm -rf /usr/local/bin/xray
+    rm -rf /etc/xray
+    rm -rf /etc/systemd/system/xray.service
+    systemctl daemon-reload
 
     echo "Xray 卸载完成"
 }
