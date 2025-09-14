@@ -1,7 +1,4 @@
 #!/bin/bash
-# 极简 Xray systemd 安装/卸载脚本 (Ubuntu)
-# 二进制固定路径 /usr/local/bin/xray
-# 配置固定路径 /etc/xray/config.json
 
 case "$1" in
 install)
