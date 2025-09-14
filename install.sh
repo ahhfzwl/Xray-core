@@ -1,5 +1,4 @@
 #!/bin/bash
-# 极简 Xray systemd 安装/卸载脚本 (自动识别 x86_64/arm64)
 
 case "$1" in
 install)
