@@ -1,0 +1,27 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          xray
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+### END INIT INFO
+
+case "$1" in
+  start)
+    /usr/local/bin/xray -c /etc/xray/config.json >/var/log/xray.log 2>&1 &
+    echo $! > /var/run/xray.pid
+    ;;
+  stop)
+    kill "$(cat /var/run/xray.pid 2>/dev/null)" 2>/dev/null
+    rm -f /var/run/xray.pid
+    ;;
+  restart)
+    $0 stop
+    $0 start
+    ;;
+  *)
+    echo "Usage: /etc/init.d/xray {start|stop|restart}"
+    exit 1
+    ;;
+esac
+
+exit 0
