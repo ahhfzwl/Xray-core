@@ -1,4 +1,5 @@
 #!/bin/bash
+# 极简 Xray systemd 安装/卸载脚本 (自动识别 x86_64/arm64)
 
 case "$1" in
 install)
@@ -6,9 +7,20 @@ install)
     apt-get update -y
     apt-get install -y wget unzip
 
+    echo "[+] 检测系统架构..."
+    ARCH=$(uname -m)
+    if [ "$ARCH" = "x86_64" ]; then
+        XRAY_URL="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip"
+    elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+        XRAY_URL="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-arm64-v8a.zip"
+    else
+        echo "不支持的架构: $ARCH"
+        exit 1
+    fi
+
     echo "[+] 下载 Xray..."
     tmpdir=$(mktemp -d)
-    wget -O "$tmpdir/xray.zip" "https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip"
+    wget -O "$tmpdir/xray.zip" "$XRAY_URL"
     unzip "$tmpdir/xray.zip" -d "$tmpdir"
     install -m 755 "$tmpdir/xray" /usr/local/bin/xray
     rm -rf "$tmpdir"
