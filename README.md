@@ -71,7 +71,13 @@ command="/usr/local/bin/xray"
 command_args="-config /etc/xray/config.json"
 command_background=true
 pidfile="/var/run/xray.pid"
+respawn="yes"
+respawn_delay="5"
 EOF
+chmod +x /etc/init.d/xray
+rc-update add xray default
+/etc/init.d/xray start
+/etc/init.d/xray status
 ```
 systemd
 ```
@@ -93,4 +99,5 @@ EOF
 systemctl daemon-reload
 systemctl enable xray
 systemctl start xray
+systemctl status xray
 ```
