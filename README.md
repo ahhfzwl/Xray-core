@@ -7,7 +7,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/ahhfzwl/Xray-core/refs/heads/m
 cd /tmp
 curl -LO https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
 unzip -o Xray-linux-64.zip
-mv xray /usr/local/bin/
+cp xray /usr/local/bin/
 ```
 
 XHTTP：
