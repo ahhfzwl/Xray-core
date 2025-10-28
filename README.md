@@ -30,10 +30,10 @@ cat > /etc/xray/xhttp.json << 'EOF'
   "outbounds": [{"protocol": "freedom"}]
 }
 EOF
-
 ```
 REALITY：
 ```
+cat > /etc/xray/xhttp.json << 'EOF'
 {
   "inbounds": [
     {
@@ -59,4 +59,5 @@ REALITY：
   ],
   "outbounds": [{"protocol": "freedom"}]
 }
+EOF
 ```
