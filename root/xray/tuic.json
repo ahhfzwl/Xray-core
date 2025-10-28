@@ -1,0 +1,30 @@
+{
+  "inbounds": [
+    {
+      "port": 10808,
+      "protocol": "socks"
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "tuic",
+      "settings": {
+        "server": "hk.by.now.cc",
+        "serverPort": 8080,
+        "users": [
+          {
+            "id": "11112222-3333-4444-aaaa-bbbbccccdddd",
+            "password": "1224"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tuic",
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "hk.by.now.cc"
+        }
+      }
+    }
+  ]
+}
