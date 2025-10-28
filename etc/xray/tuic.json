@@ -1,0 +1,34 @@
+{
+  "inbounds": [
+    {
+      "port": 443,
+      "protocol": "tuic",
+      "settings": {
+        "users": [
+          {
+            "id": "11112222-3333-4444-aaaa-bbbbccccdddd",
+            "password": "1224"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tuic",
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "hk.by.now.cc",
+          "certificates": [
+            {
+              "certificateFile": "/etc/ssl/by.now.cc.cer",
+              "keyFile": "/etc/ssl/by.now.cc.key"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom"
+    }
+  ]
+}
