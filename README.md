@@ -10,6 +10,7 @@ unzip Xray-linux-64.zip
 mv xray /usr/local/bin/
 
 ```
+
 XHTTP：
 ```
 cat > /etc/xray/xhttp.json << 'EOF'
@@ -61,3 +62,4 @@ cat > /etc/xray/xhttp.json << 'EOF'
 }
 EOF
 ```
+
