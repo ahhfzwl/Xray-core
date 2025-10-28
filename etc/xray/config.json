@@ -1,0 +1,25 @@
+{
+  "inbounds": [
+    {
+      "port": 443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {"id": "11112222-3333-4444-aaaa-bbbbccccdddd"}
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "dest": "www.microsoft.com:443",
+          "serverNames": ["www.microsoft.com"],
+          "privateKey": "cGuXEVMQtZ6x7fXPtK9_ZqXC7KWvFN8j0Km7VizEDVU",
+          "shortIds": [""]
+        }
+      }
+    }
+  ],
+  "outbounds": [{"protocol": "freedom"}]
+}
