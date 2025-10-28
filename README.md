@@ -101,5 +101,6 @@ systemctl status xray
 ```
 修改端口：
 ```
-sed -i 's/"port": 10808,/"port": 443,/' "/etc/xray/config.json" && /etc/init.d/xray restart
+sed -i 's/"port": 10808,/"port": 443,/' "/etc/xray/config.json"
+/etc/init.d/xray restart
 ```
