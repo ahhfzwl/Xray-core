@@ -4,11 +4,12 @@ bash <(curl -Ls https://raw.githubusercontent.com/ahhfzwl/Xray-core/refs/heads/m
 
 手动安装：
 ```
-cd /tmp
+mkdir -p /etc/xray/
+cd /etc/xray/
 curl -LO https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
 unzip -o Xray-linux-64.zip
-cp xray /usr/local/bin/
-mkdir -p /etc/xray/
+mv xray /usr/local/bin/
+rm -rf *
 ```
 
 XHTTP：
