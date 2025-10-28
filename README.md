@@ -62,4 +62,35 @@ cat > /etc/xray/config.json << 'EOF'
 }
 EOF
 ```
+openrc-run
+```
+cat > /etc/init.d/xray << 'EOF'
+#!/sbin/openrc-run
+name="xray"
+command="/usr/local/bin/xray"
+command_args="-config /etc/xray/config.json"
+command_background=true
+pidfile="/var/run/xray.pid"
+EOF
+```
+systemd
+```
+cat > /etc/systemd/system/xray.service << 'EOF'
+[Unit]
+Description=Xray Service
+After=network.target
 
+[Service]
+ExecStart=/usr/local/bin/xray run -config /etc/xray/config.json
+
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable xray
+systemctl start xray
+```
