@@ -62,7 +62,7 @@ cat > /etc/xray/config.json << 'EOF'
 }
 EOF
 ```
-openrc-run
+openrc
 ```
 cat > /etc/init.d/xray << 'EOF'
 #!/sbin/openrc-run
