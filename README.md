@@ -34,7 +34,7 @@ EOF
 ```
 REALITY：
 ```
-cat > /etc/xray/xhttp.json << 'EOF'
+cat > /etc/xray/reality.json << 'EOF'
 {
   "inbounds": [
     {
