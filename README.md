@@ -106,3 +106,7 @@ systemctl status xray
 sed -i 's/"port": 443,/"port": 10808,/' "/etc/xray/config.json"
 /etc/init.d/xray restart
 ```
+客户端配置：
+```
+vless://11112222-3333-4444-aaaa-bbbbccccdddd@1.1.1.1:10808?security=reality&sni=www.microsoft.com&pbk=JjvQc0FYAvXyhJgUEsDCCoYO6zyywwZo4Yy7kKwzCAY&type=tcp#REALITY
+```
