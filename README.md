@@ -18,7 +18,7 @@ cat > /etc/xray/config.json << 'EOF'
 {
   "inbounds": [
     {
-      "port": 10808,
+      "port": 443,
       "protocol": "vless",
       "settings": {
         "clients": [
@@ -39,7 +39,7 @@ cat > /etc/xray/config.json << 'EOF'
 {
   "inbounds": [
     {
-      "port": 10808,
+      "port": 443,
       "protocol": "vless",
       "settings": {
         "clients": [
@@ -103,6 +103,6 @@ systemctl status xray
 ```
 修改端口：
 ```
-sed -i 's/"port": 10808,/"port": 443,/' "/etc/xray/config.json"
+sed -i 's/"port": 443,/"port": 10808,/' "/etc/xray/config.json"
 /etc/init.d/xray restart
 ```
