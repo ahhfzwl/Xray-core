@@ -4,5 +4,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/ahhfzwl/Xray-core/refs/heads/m
 
 手动安装：
 ```
+cd /tmp
 curl -LO https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+unzip Xray-linux-64.zip
 ```
