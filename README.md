@@ -8,6 +8,7 @@ cd /tmp
 curl -LO https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
 unzip -o Xray-linux-64.zip
 cp xray /usr/local/bin/
+mkdir -p /etc/xray/
 ```
 
 XHTTP：
