@@ -13,7 +13,7 @@ mv xray /usr/local/bin/
 
 XHTTP：
 ```
-cat > /etc/xray/xhttp.json << 'EOF'
+cat > /etc/xray/config.json << 'EOF'
 {
   "inbounds": [
     {
@@ -34,7 +34,7 @@ EOF
 ```
 REALITY：
 ```
-cat > /etc/xray/reality.json << 'EOF'
+cat > /etc/xray/config.json << 'EOF'
 {
   "inbounds": [
     {
