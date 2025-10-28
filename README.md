@@ -91,7 +91,6 @@ ExecStart=/usr/local/bin/xray run -config /etc/xray/config.json
 
 Restart=on-failure
 RestartSec=5s
-LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
