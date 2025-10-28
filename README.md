@@ -99,3 +99,7 @@ systemctl enable xray
 systemctl start xray
 systemctl status xray
 ```
+修改端口：
+```
+sed -i 's/"port": 10808,/"port": 443,/' "/etc/xray/config.json"
+```
