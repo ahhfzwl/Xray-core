@@ -110,3 +110,10 @@ sed -i 's/"port": 443,/"port": 10808,/' "/etc/xray/config.json"
 ```
 vless://11112222-3333-4444-aaaa-bbbbccccdddd@1.1.1.1:10808?security=reality&sni=www.microsoft.com&pbk=JjvQc0FYAvXyhJgUEsDCCoYO6zyywwZo4Yy7kKwzCAY&type=tcp#REALITY
 ```
+卸载程序：
+```
+rc-update del xray
+rm -rf /etc/xray
+rm /usr/local/bin/xray
+rm /etc/init.d/xray
+```
