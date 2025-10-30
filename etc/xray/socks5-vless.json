@@ -1,0 +1,53 @@
+{
+  "dns": {
+    "hosts": {
+      "dns.google": [
+        "2001:4860:4860::8844"
+      ]
+    },
+    "servers": [
+      "https://dns.google/resolve"
+    ]
+  },
+  "inbounds": [
+    {
+      "port": 2088,
+      "protocol": "mixed"
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "162.159.38.255",
+            "port": 443,
+            "users": [
+              {
+                "id": "11112222-3333-4444-aaaa-bbbbccccdddd",
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "wrap.eu.org",
+          "enableECH": true,
+          "forceECH": true
+        },
+        "wsSettings": {
+          "path": "/?socks5=admin:admin@43.159.147.149:1080",
+          "host": "wrap.eu.org",
+          "headers": {
+            "Host": "wrap.eu.org"
+          }
+        }
+      }
+    }
+  ]
+}
