@@ -37,10 +37,7 @@
         },
         "wsSettings": {
           "path": "/?socks5=admin:admin@43.159.147.149:1080",
-          "host": "wrap.eu.org",
-          "headers": {
-            "Host": "wrap.eu.org"
-          }
+          "host": "wrap.eu.org"
         }
       }
     }
