@@ -1,58 +1,39 @@
 {
-  "log": {
-    "loglevel": "warning"
-  },
-  "inbounds": [
-    {
-      "port": 1080,
-      "protocol": "socks",
-      "settings": {
-        "auth": "noauth",
-        "udp": true,
-        "ip": "127.0.0.1"
-      }
-    }
-  ],
+  "log": {"loglevel": "warning"},
+  "inbounds": [{"port": 1080,"protocol": "socks"}}],
   "outbounds": [
     {
       "protocol": "vless",
       "settings": {
         "vnext": [
           {
-            "address": "example.com",  // ⚠️ 替换为您的服务器地址（域名或IP）
-            "port": 443,               // ⚠️ 替换为服务器监听的端口
+            "address": "23.227.38.32",
+            "port": 443,
             "users": [
               {
-                "id": "11112222-3333-4444-aaaa-bbbbccccdddd", // 替换为您的 UUID
-                "encryption": "none",
-                "flow": "" 
+                "id": "11112222-3333-4444-aaaa-bbbbccccdddd",
+                "encryption": "none"
               }
             ]
           }
         ]
       },
       "streamSettings": {
-        "network": "xhttp",          // **Xray 独立协议：xhttp**
-        "security": "tls",           // 启用 TLS
+        "network": "xhttp",
+        "security": "tls",
         "tlsSettings": {
           "allowInsecure": false,
-          "serverName": "www.fake-domain.com", // ⚠️ 伪装的 SNI 域名
+          "serverName": "cloudflare-ech.com",
           "alpn": ["h2", "http/1.1"],
-          "echSettings": {           // ECH 配置
+          "echSettings": {
             "enabled": true
-            // "ech_config": "..."   // 可选：手动指定 ECH Config
           }
         },
-        "xhttpSettings": {          // 针对 network: "xhttp" 的设置
-          "path": ["/your/path"],   // ⚠️ 替换为服务器配置的 path
-          "host": ["www.fake-domain.com"] // ⚠️ 可选：伪装的 Host 域名
+        "xhttpSettings": {
+          "path": ["/xhttp"],
+          "host": ["x.wrap.eu.org"]
         }
-      },
-      "tag": "proxy"
-    },
-    {
-      "protocol": "freedom",
-      "tag": "direct"
+      }
     }
   ]
 }
