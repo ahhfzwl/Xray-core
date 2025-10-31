@@ -32,25 +32,20 @@
         ]
       },
       "streamSettings": {
-        "network": "tcp", // VLESS + xhttp 模式通常在客户端使用 TCP 或其他网络类型
-        "security": "tls", // 启用 TLS
+        "network": "xhttp",          // **Xray 独立协议：xhttp**
+        "security": "tls",           // 启用 TLS
         "tlsSettings": {
           "allowInsecure": false,
-          "serverName": "www.fake-domain.com", // ⚠️ 替换为伪装的 SNI 域名
+          "serverName": "www.fake-domain.com", // ⚠️ 伪装的 SNI 域名
           "alpn": ["h2", "http/1.1"],
-          "echSettings": { // ECH 配置
+          "echSettings": {           // ECH 配置
             "enabled": true
-            // "ech_config": "..." // ⚠️ 如果需要手动指定 ECH Config，可在此处添加，否则客户端通常会自动从 DNS-over-HTTPS/TLS 获取。
+            // "ech_config": "..."   // 可选：手动指定 ECH Config
           }
         },
-        "tcpSettings": {
-          // 由于服务端使用 xhttp，如果客户端也需对应，可将 network 设为 "http" 或在 tcpSettings 中模拟 http 行为
-          "header": {
-            "type": "http",
-            "request": {
-              "path": ["/your/path"] // ⚠️ 替换为服务器配置的 path
-            }
-          }
+        "xhttpSettings": {          // 针对 network: "xhttp" 的设置
+          "path": ["/your/path"],   // ⚠️ 替换为服务器配置的 path
+          "host": ["www.fake-domain.com"] // ⚠️ 可选：伪装的 Host 域名
         }
       },
       "tag": "proxy"
