@@ -1,0 +1,233 @@
+// CF ECH MitM Proxy + CF Worker VLESS
+
+// Xray-core v25.9.11+
+
+// 需要自签名证书：您可以使用“xray tls cert -ca -file=mycert”命令创建。
+
+// 此外，必须将证书导入系统/浏览器的“受信任的根证书颁发机构”。
+
+{
+  "log": {
+    "loglevel": "none",
+    "dnsLog": false,
+    "access": "none"
+  },
+  "dns": {
+    "tag": "dns-query",
+    "hosts": {
+      "cloudflare-dns.com": "1.1.1.1",	//占位，不解析自己，直接匹配规则
+      "one.one.one.one": "1.1.1.1"
+    },
+    "servers": [
+      "https://cloudflare-dns.com/dns-query",	//DoH会强制ECH
+      "https://one.one.one.one/dns-query"
+    ],
+    "disableFallback": true
+  },
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "port": 1080,
+      "protocol": "socks",
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls"
+        ],
+        "routeOnly": false
+      }
+    },
+    {
+      "tag": "tls-decrypt",
+      "protocol": "tunnel",
+      "listen": "127.0.0.1",
+      "port": 44443,
+      "settings": {
+        "port": 443,
+        "network": "tcp",
+        "followRedirect": true
+      },
+      "streamSettings": {
+        "security": "tls",
+        "tlsSettings": {
+          "alpn": [
+            "h2",
+            "http/1.1"
+          ],
+          "certificates": [
+            {
+              "usage": "issue",
+              "certificateFile": "mycert.crt",		//自签CA证书，放到指定位置
+              "keyFile": "mycert.key"		//自签CA私钥，放到指定位置
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "routing": {
+    "domainStrategy": "IPOnDemand",
+    "rules": [
+      {
+        "inboundTag": [
+          "socks-in"
+        ],
+        "outboundTag": "redirect-out",
+        "network": "tcp",
+        "protocol": [
+          "tls"
+        ],
+        "port": 443,
+        "ip": [
+          "geoip:cloudflare"
+        ]
+      },
+      {
+        "inboundTag": [
+          "dns-query"
+        ],
+        "outboundTag": "redirect-out"
+      },
+      {
+        "inboundTag": [
+          "tls-decrypt"
+        ],
+        "outboundTag": "tls-repack",
+        "ip": [
+          "geoip:cloudflare"
+        ]
+      },
+      {
+        "inboundTag": [
+          "socks-in"
+        ],
+        "balancerTag": "worker-balance",		//不用CF workers的话可删除outbounds中的worker-xx，这里改direct
+        "ip": [
+          "geoip:!cloudflare"
+        ]
+      }
+    ],
+    "balancers": [
+      {
+        "tag": "worker-balance",
+        "selector": [
+          "worker"
+        ],
+        "strategy": {
+          "type": "random"
+        }
+      }
+    ]
+  },
+  "outbounds": [
+    {
+      "tag": "worker-1",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "###########",	//填上CF优选IP
+            "port": 443,
+            "users": [
+              {
+                "id": "###########",	//填上你的UUID
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "host": "###########.workers.dev",		//有ECH，所以可以直接填workers域名
+          "path": "/?ed=2560"
+        },
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "###########.workers.dev",	//有ECH，所以可以直接填workers域名
+          "allowInsecure": false,
+          "echConfigList": "gitlab.io+udp://1.1.1.1",		//echConfigList填写能够获取CF的ECH Config的域名+可以成功解析的DNS
+          "echForceQuery": "full",
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "tag": "worker-2",	//同上，可复制多个，可以填不同的workers，不同的优选IP，tag为worker-xx，balancer会负载均衡
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "###########",
+            "port": 443,
+            "users": [
+              {
+                "id": "###########",
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "host": "###########.workers.dev",
+          "path": "/?ed=2560"
+        },
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "###########.workers.dev",
+          "allowInsecure": false,
+          "echConfigList": "gitlab.io+udp://1.1.1.1",
+          "echForceQuery": "full",
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "tag": "block",
+      "protocol": "blackhole"
+    },
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "settings": {
+        "domainStrategy": "ForceIP"
+      }
+    },
+    {
+      "tag": "redirect-out",
+      "protocol": "freedom",
+      "settings": {
+        "redirect": "127.0.0.1:44443"
+      }
+    },
+    {
+      "tag": "tls-repack",
+      "protocol": "freedom",
+      "settings": {
+        "redirect": "###########:443",		//此处一行删除，则直连CF域名时，会采用DNS解析的IP，如果填写CF优选IP，则会连到该IP
+        "domainStrategy": "ForceIP"
+      },
+      "streamSettings": {
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "fromMitM",
+          "verifyPeerCertInNames": [
+            "fromMitM"
+          ],
+          "alpn": [
+            "fromMitM"
+          ],
+          "allowInsecure": false,
+          "echConfigList": "gitlab.io+udp://1.1.1.1",	//echConfigList填写能够获取CF的ECH Config的域名+可以成功解析的DNS
+          "echForceQuery": "full",
+          "fingerprint": "chrome"
+        }
+      }
+    }
+  ]
+  }
