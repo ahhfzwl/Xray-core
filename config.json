@@ -1,0 +1,127 @@
+{ // 使用命令“xray tls cert -ca -file=mycert”创建证书并导入“受信任的根证书颁发机构”。
+  "log": {"loglevel": "warning"},
+  "dns": {"tag": "dns","hosts": {"cloudflare-dns.com": "1.1.1.1"},"servers": ["https://cloudflare-dns.com/dns-query"],"clientIp": "120.85.117.1"},
+  "inbounds": [
+    {
+      "tag": "mixed",
+      "port": 1080,
+      "protocol": "mixed",
+      "sniffing": {"enabled": true,"destOverride": ["http","tls"]}
+    },
+    {
+      "tag": "decrypt",
+      "protocol": "tunnel",
+      "listen": "127.0.0.1",
+      "port": 44,
+      "settings": {
+        "port": 443,
+        "network": "tcp",
+        "followRedirect": true
+      },
+      "streamSettings": {
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "usage": "issue",
+              "certificateFile": "mycert.crt",
+              "keyFile": "mycert.key"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "routing": {
+    "domainStrategy": "IPOnDemand",
+    "rules": [
+      {
+        "inboundTag": ["mixed"],
+        "outboundTag": "redirect",
+        "network": "tcp",
+        "protocol": ["tls"],
+        "port": 443,
+        "ip": ["geoip:cloudflare"]
+      },
+      {
+        "inboundTag": ["mixed"],
+        "outboundTag": "freedom",
+        "ip": ["geoip:cn"]
+      },
+      {
+        "inboundTag": ["dns"],
+        "outboundTag": "redirect"
+      },
+      {
+        "inboundTag": ["decrypt"],
+        "outboundTag": "repack",
+        "ip": ["geoip:cloudflare"]
+      }
+    ]
+  },
+  "outbounds": [
+    {
+      "tag": "vless",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "162.159.38.1",
+            "port": 443,
+            "users": [
+              {
+                "id": "11112222-3333-4444-aaaa-bbbbccccdddd",
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "host": "vl.de5.net",
+          "path": "/?ed=2560"
+        },
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "vl.de5.net",
+          "allowInsecure": false,
+          "echConfigList": "ai.com+udp://1.1.1.1",
+          "echForceQuery": "full",
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "tag": "blackhole",
+      "protocol": "blackhole"
+    },
+    {
+      "tag": "freedom",
+      "protocol": "freedom"
+    },
+    {
+      "tag": "redirect",
+      "protocol": "freedom",
+      "settings": {"redirect": "127.0.0.1:44"}
+    },
+    {
+      "tag": "repack",
+      "protocol": "freedom",
+      "settings": {"redirect": "162.159.38.1:443","domainStrategy": "ForceIP"},
+      "streamSettings": {
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "fromMitM",
+          "verifyPeerCertInNames": ["fromMitM"],
+          "alpn": ["fromMitM"],
+          "allowInsecure": false,
+          "echConfigList": "ai.com+udp://1.1.1.1",
+          "echForceQuery": "full",
+          "fingerprint": "chrome"
+        }
+      }
+    }
+  ]
+}
