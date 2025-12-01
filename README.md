@@ -12,13 +12,34 @@ mv xray /usr/local/bin/
 rm -rf *
 ```
 
+WS：
+```
+cat > /etc/xray/config.json << 'EOF'
+{
+  "inbounds": [
+    {
+      "port": 80,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {"id": "11112222-3333-4444-aaaa-bbbbccccdddd"}
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {"network": "ws"}
+    }
+  ],
+  "outbounds": [{"protocol": "freedom"}]
+}
+EOF
+```
 XHTTP：
 ```
 cat > /etc/xray/config.json << 'EOF'
 {
   "inbounds": [
     {
-      "port": 443,
+      "port": 80,
       "protocol": "vless",
       "settings": {
         "clients": [
