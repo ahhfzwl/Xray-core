@@ -1,8 +1,0 @@
-#!/sbin/openrc-run
-name="xray"
-command="/usr/local/bin/xray"
-command_args="-config /etc/xray/config.json"
-command_background=true
-pidfile="/var/run/xray.pid"
-respawn="yes"
-respawn_delay="5"
