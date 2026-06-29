@@ -3,7 +3,8 @@ Description=Xray Service
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/xray run -config /etc/xray/config.json
+WorkingDirectory=/etc/xray/
+ExecStart=/usr/local/bin/xray
 Restart=on-failure
 RestartSec=5s
 
